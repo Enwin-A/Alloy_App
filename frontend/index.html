@@ -1,0 +1,1138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Alloy Composition Predictor</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg: #fafafa;
+            --card-bg: #ffffff;
+            --text: #1a1a1a;
+            --text-muted: #6b6b6b;
+            --border: #e0e0e0;
+            --accent: #1a1a1a;
+            --success: #2d2d2d;
+            --warning: #4a4a4a;
+            --radius: 12px;
+            --radius-sm: 8px;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        h1 {
+            font-size: 1.75rem;
+            font-weight: 600;
+            margin-bottom: 8px;
+            letter-spacing: -0.02em;
+        }
+
+        .subtitle {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 24px;
+            margin-bottom: 24px;
+        }
+
+        .card-title {
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+            margin-bottom: 16px;
+        }
+
+        .mode-switch {
+            display: inline-flex;
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+
+        .mode-button {
+            padding: 10px 18px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            border: none;
+            background: transparent;
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: background 0.2s, color 0.2s;
+        }
+
+        .mode-button + .mode-button {
+            border-left: 1px solid var(--border);
+        }
+
+        .mode-button.active {
+            background: var(--accent);
+            color: #ffffff;
+        }
+
+        .mode-section {
+            display: none;
+        }
+
+        .mode-section.show {
+            display: block;
+        }
+
+        .input-group {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+            align-items: flex-end;
+        }
+
+        .field {
+            flex: 1;
+            min-width: 140px;
+        }
+
+        label {
+            display: block;
+            font-size: 0.85rem;
+            font-weight: 500;
+            margin-bottom: 6px;
+            color: var(--text);
+        }
+
+        input, select {
+            width: 100%;
+            padding: 12px 14px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            font-size: 1rem;
+            background: var(--card-bg);
+            color: var(--text);
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        input:focus, select:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(0,0,0,0.05);
+        }
+
+        input[type="number"] {
+            -moz-appearance: textfield;
+        }
+
+        input::-webkit-outer-spin-button,
+        input::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+
+        select:disabled {
+            background: #f5f5f5;
+            color: var(--text-muted);
+            cursor: not-allowed;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 12px 28px;
+            background: var(--accent);
+            color: white;
+            border: none;
+            border-radius: var(--radius-sm);
+            font-size: 0.95rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: opacity 0.2s, transform 0.1s;
+            min-width: 160px;
+        }
+
+        .btn:hover {
+            opacity: 0.9;
+        }
+
+        .btn:active {
+            transform: scale(0.98);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn .spinner {
+            width: 18px;
+            height: 18px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-right: 8px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .results {
+            display: none;
+        }
+
+        .results.show {
+            display: block;
+        }
+
+        .model-stats {
+            display: flex;
+            gap: 24px;
+            flex-wrap: wrap;
+            padding: 16px;
+            background: var(--bg);
+            border-radius: var(--radius-sm);
+            margin-bottom: 20px;
+        }
+
+        .stat {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 1.25rem;
+            font-weight: 600;
+        }
+
+        .stat-label {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .candidate {
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 16px;
+            margin-bottom: 12px;
+            background: var(--card-bg);
+            transition: box-shadow 0.2s;
+        }
+
+        .candidate:hover {
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        }
+
+        .candidate-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .candidate-rank {
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .candidate-badges {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+
+        .badge {
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 0.7rem;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+        }
+
+        .badge-valid {
+            background: var(--accent);
+            color: white;
+        }
+
+        .badge-invalid {
+            background: var(--border);
+            color: var(--text-muted);
+        }
+
+        .badge-series {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-muted);
+        }
+
+        .candidate-prediction {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .candidate-error {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-bottom: 12px;
+        }
+
+        .composition-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+            gap: 8px;
+        }
+
+        .comp-item {
+            background: var(--bg);
+            padding: 8px;
+            border-radius: var(--radius-sm);
+            text-align: center;
+        }
+
+        .comp-element {
+            font-weight: 600;
+            font-size: 0.85rem;
+        }
+
+        .comp-value {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        .violations {
+            margin-top: 12px;
+            padding: 10px;
+            background: #f5f5f5;
+            border-radius: var(--radius-sm);
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        .violations-title {
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .processing-section {
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid var(--border);
+        }
+
+        .processing-title {
+            font-weight: 600;
+            font-size: 0.8rem;
+            margin-bottom: 8px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .processing-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 8px;
+        }
+
+        .proc-item {
+            background: var(--bg);
+            padding: 8px;
+            border-radius: var(--radius-sm);
+        }
+
+        .proc-label {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            margin-bottom: 2px;
+        }
+
+        .proc-value {
+            font-weight: 600;
+            font-size: 0.85rem;
+        }
+
+        .forward-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 12px;
+        }
+
+        .section-heading {
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+            margin: 20px 0 12px;
+        }
+
+        .forward-result-card {
+            display: none;
+        }
+
+        .forward-result-card.show {
+            display: block;
+        }
+
+        .forward-prediction-value {
+            font-size: 1.7rem;
+            font-weight: 600;
+            margin-bottom: 12px;
+        }
+
+        .forward-meta {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 16px;
+            align-items: center;
+        }
+
+        .forward-summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+
+        .forward-summary-item {
+            background: var(--bg);
+            padding: 10px;
+            border-radius: var(--radius-sm);
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        .forward-summary-item strong {
+            display: block;
+            font-size: 0.9rem;
+            color: var(--text);
+        }
+
+        .forward-error {
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            color: #991b1b;
+            padding: 12px 16px;
+            border-radius: var(--radius-sm);
+            margin-bottom: 16px;
+            display: none;
+        }
+
+        .forward-error.show {
+            display: block;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: var(--text-muted);
+        }
+
+        .error-message {
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            color: #991b1b;
+            padding: 12px 16px;
+            border-radius: var(--radius-sm);
+            margin-bottom: 16px;
+            display: none;
+        }
+
+        .error-message.show {
+            display: block;
+        }
+
+        .help-text {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+
+        footer {
+            text-align: center;
+            padding: 24px;
+            color: var(--text-muted);
+            font-size: 0.8rem;
+        }
+
+        /* Toggle for advanced options */
+        .advanced-toggle {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-top: 16px;
+            user-select: none;
+        }
+
+        .advanced-toggle:hover {
+            color: var(--text);
+        }
+
+        .advanced-options {
+            display: none;
+            margin-top: 16px;
+            padding-top: 16px;
+            border-top: 1px solid var(--border);
+        }
+
+        .advanced-options.show {
+            display: block;
+        }
+
+        .chevron {
+            transition: transform 0.2s;
+        }
+
+        .chevron.rotated {
+            transform: rotate(180deg);
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                padding: 20px 16px;
+            }
+            
+            .input-group {
+                flex-direction: column;
+            }
+            
+            .field {
+                width: 100%;
+            }
+            
+            .btn {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Alloy Composition Predictor</h1>
+            <p class="subtitle">GP-based reverse prediction for aluminum alloys</p>
+        </header>
+
+        <div class="mode-switch">
+            <button class="mode-button active" id="modeReverseBtn" onclick="switchMode('reverse')">Find Compositions</button>
+            <button class="mode-button" id="modeForwardBtn" onclick="switchMode('forward')">Predict Yield Strength</button>
+        </div>
+
+        <div id="reverseSection" class="mode-section show">
+            <div class="card">
+                <div class="card-title">Target Property</div>
+                
+                <div class="error-message" id="errorMessage"></div>
+                
+                <div class="input-group">
+                    <div class="field">
+                        <label for="target">Property</label>
+                        <select id="target">
+                            <option value="YS">Yield Strength (YS)</option>
+                            <option value="UTS">Ultimate Tensile Strength (UTS)</option>
+                        </select>
+                    </div>
+                    
+                    <div class="field">
+                        <label for="value">Target Value (MPa)</label>
+                        <input type="number" id="value" value="200" min="50" max="800" step="5">
+                    </div>
+                    
+                    <div class="field">
+                        <label for="tolerance">Tolerance (%)</label>
+                        <select id="tolerance">
+                            <option value="0.05">±5%</option>
+                            <option value="0.10" selected>±10%</option>
+                            <option value="0.15">±15%</option>
+                            <option value="0.20">±20%</option>
+                        </select>
+                    </div>
+                    
+                    <button class="btn" id="searchBtn" onclick="search()">
+                        Find Compositions
+                    </button>
+                </div>
+                
+                <div class="advanced-toggle" onclick="toggleAdvanced()">
+                    <svg class="chevron" id="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M6 9l6 6 6-6"/>
+                    </svg>
+                    Advanced Options
+                </div>
+                
+                <div class="advanced-options" id="advancedOptions">
+                    <div class="input-group">
+                        <div class="field">
+                            <label for="nSuggestions">Number of Results</label>
+                            <select id="nSuggestions">
+                                <option value="5">5</option>
+                                <option value="10" selected>10</option>
+                                <option value="15">15</option>
+                                <option value="20">20</option>
+                            </select>
+                        </div>
+                        <div class="field">
+                            <label for="mode">Model Mode</label>
+                            <select id="mode" disabled>
+                                <option value="balanced" selected>Balanced (only available)</option>
+                                <option value="deep" disabled>Deep (coming soon)</option>
+                                <option value="standard" disabled>Standard (coming soon)</option>
+                            </select>
+                            <div class="help-text">Other modes will be enabled in future versions</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="results" id="results">
+                <div class="card">
+                    <div class="card-title">Model Information</div>
+                    <div class="model-stats" id="modelStats">
+                        <!-- Filled by JS -->
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <div class="card-title">Suggested Compositions</div>
+                    <div id="candidatesList">
+                        <!-- Filled by JS -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="forwardSection" class="mode-section">
+            <div class="card">
+                <div class="card-title">Forward Prediction</div>
+                
+                <div class="forward-error" id="forwardError"></div>
+
+                <div class="section-heading">Composition (wt%)</div>
+                <div class="forward-grid">
+                    <div class="field">
+                        <label for="compMg">Mg (%)</label>
+                        <input type="number" step="0.01" id="compMg" data-comp-input="Mg" placeholder="e.g. 4.0">
+                    </div>
+                    <div class="field">
+                        <label for="compCu">Cu (%)</label>
+                        <input type="number" step="0.01" id="compCu" data-comp-input="Cu" placeholder="e.g. 1.5">
+                    </div>
+                    <div class="field">
+                        <label for="compZn">Zn (%)</label>
+                        <input type="number" step="0.01" id="compZn" data-comp-input="Zn" placeholder="e.g. 3.0">
+                    </div>
+                    <div class="field">
+                        <label for="compMn">Mn (%)</label>
+                        <input type="number" step="0.01" id="compMn" data-comp-input="Mn" placeholder="e.g. 0.5">
+                    </div>
+                    <div class="field">
+                        <label for="compSi">Si (%)</label>
+                        <input type="number" step="0.01" id="compSi" data-comp-input="Si" placeholder="e.g. 0.8">
+                    </div>
+                    <div class="field">
+                        <label for="compFe">Fe (%)</label>
+                        <input type="number" step="0.01" id="compFe" data-comp-input="Fe" placeholder="e.g. 0.2">
+                    </div>
+                    <div class="field">
+                        <label for="compCr">Cr (%)</label>
+                        <input type="number" step="0.01" id="compCr" data-comp-input="Cr" placeholder="e.g. 0.05">
+                    </div>
+                    <div class="field">
+                        <label for="compNi">Ni (%)</label>
+                        <input type="number" step="0.01" id="compNi" data-comp-input="Ni" placeholder="e.g. 0.05">
+                    </div>
+                    <div class="field">
+                        <label for="compTi">Ti (%)</label>
+                        <input type="number" step="0.01" id="compTi" data-comp-input="Ti" placeholder="e.g. 0.10">
+                    </div>
+                    <div class="field">
+                        <label for="compZr">Zr (%)</label>
+                        <input type="number" step="0.01" id="compZr" data-comp-input="Zr" placeholder="e.g. 0.12">
+                    </div>
+                    <div class="field">
+                        <label for="compSc">Sc (%)</label>
+                        <input type="number" step="0.01" id="compSc" data-comp-input="Sc" placeholder="e.g. 0.20">
+                    </div>
+                    <div class="field">
+                        <label for="compAl">Al (%)</label>
+                        <input type="number" step="0.01" id="compAl" data-comp-input="Al" placeholder="Auto if blank">
+                    </div>
+                </div>
+                <div class="help-text">Leave Al empty to automatically balance to 100%.</div>
+
+                <div class="section-heading">Processing Parameters</div>
+                <div class="forward-grid">
+                    <div class="field">
+                        <label for="procHomogTemp">Homogenization Temp (°C)</label>
+                        <input type="number" step="1" id="procHomogTemp" data-proc-input="homog_temp_max_C" value="480">
+                    </div>
+                    <div class="field">
+                        <label for="procHomogTime">Homogenization Time (hours)</label>
+                        <input type="number" step="0.1" id="procHomogTime" data-proc-input="homog_time_total_s" data-unit="hours" value="5">
+                    </div>
+                    <div class="field">
+                        <label for="procRecrystTemp">Recrystallization Temp (°C)</label>
+                        <input type="number" step="1" id="procRecrystTemp" data-proc-input="recryst_temp_max_C" value="320">
+                    </div>
+                    <div class="field">
+                        <label for="procRecrystTime">Recrystallization Time (hours)</label>
+                        <input type="number" step="0.1" id="procRecrystTime" data-proc-input="recryst_time_total_s" data-unit="hours" value="2.5">
+                    </div>
+                    <div class="field">
+                        <label for="procColdRolling">Cold Rolling Reduction (%)</label>
+                        <input type="number" step="0.1" id="procColdRolling" data-proc-input="Cold rolling reduction (percentage)" value="60">
+                    </div>
+                    <div class="field">
+                        <label for="procHotRolling">Hot Rolling Reduction (%)</label>
+                        <input type="number" step="0.1" id="procHotRolling" data-proc-input="Hot rolling reduction (percentage)" value="70">
+                    </div>
+                </div>
+
+                <button class="btn" id="forwardPredictBtn" onclick="predictForward()">
+                    Predict YS
+                </button>
+            </div>
+
+            <div class="card forward-result-card" id="forwardResultCard">
+                <div class="card-title">Prediction Result</div>
+                <div id="forwardResultContent">
+                    <div class="empty-state">Enter composition and processing parameters to predict yield strength.</div>
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            GP Exploration Model • Built for Materials Science Research
+        </footer>
+    </div>
+
+    <script>
+        const API_BASE = '';  // Same origin
+        const COMPOSITION_KEYS = ['Al', 'Mg', 'Cu', 'Zn', 'Mn', 'Si', 'Fe', 'Cr', 'Ni', 'Ti', 'Zr', 'Sc'];
+        let currentMode = 'reverse';
+
+        function switchMode(mode) {
+            if (mode === currentMode) return;
+            currentMode = mode;
+            const reverseSection = document.getElementById('reverseSection');
+            const forwardSection = document.getElementById('forwardSection');
+            const reverseBtn = document.getElementById('modeReverseBtn');
+            const forwardBtn = document.getElementById('modeForwardBtn');
+            reverseSection.classList.toggle('show', mode === 'reverse');
+            forwardSection.classList.toggle('show', mode === 'forward');
+            reverseBtn.classList.toggle('active', mode === 'reverse');
+            forwardBtn.classList.toggle('active', mode === 'forward');
+            if (mode === 'forward') {
+                document.getElementById('forwardResultCard').classList.add('show');
+            }
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function showForwardError(message) {
+            const el = document.getElementById('forwardError');
+            if (!message) {
+                el.classList.remove('show');
+                el.textContent = '';
+                return;
+            }
+            el.textContent = message;
+            el.classList.add('show');
+        }
+
+        function setForwardLoading(loading) {
+            const btn = document.getElementById('forwardPredictBtn');
+            if (loading) {
+                btn.disabled = true;
+                btn.innerHTML = '<div class="spinner"></div> Predicting...';
+            } else {
+                btn.disabled = false;
+                btn.innerHTML = 'Predict YS';
+            }
+        }
+
+        function buildCompositionGrid(comp) {
+            return COMPOSITION_KEYS
+                .filter(key => comp[key] !== undefined && comp[key] !== null && Math.abs(parseFloat(comp[key])) > 0.0005)
+                .map(key => `
+                    <div class="comp-item">
+                        <div class="comp-element">${key}</div>
+                        <div class="comp-value">${parseFloat(comp[key]).toFixed(2)}%</div>
+                    </div>
+                `)
+                .join('');
+        }
+
+        function renderForwardResult(data) {
+            const card = document.getElementById('forwardResultCard');
+            const content = document.getElementById('forwardResultContent');
+            card.classList.add('show');
+
+            if (!data.success) {
+                content.innerHTML = '<div class="empty-state">Unable to predict yield strength for the provided inputs.</div>';
+                return;
+            }
+
+            const composition = data.inputs?.composition || {};
+            const processing = data.inputs?.processing || {};
+            const violations = data.violations || [];
+            const alloySeries = (data.alloy_series || []).join(', ');
+            const compositionSum = Object.values(composition).reduce((acc, val) => acc + (isNaN(parseFloat(val)) ? 0 : parseFloat(val)), 0);
+
+            const processingSummary = [
+                ['Homog. Temp', processing['homog_temp_max_C'] ? `${processing['homog_temp_max_C'].toFixed ? processing['homog_temp_max_C'].toFixed(0) : processing['homog_temp_max_C']} °C` : '—'],
+                ['Homog. Time', processing['homog_time_total_s'] ? `${(processing['homog_time_total_s']/3600).toFixed(2)} h` : '—'],
+                ['Recryst. Temp', processing['recryst_temp_max_C'] ? `${processing['recryst_temp_max_C'].toFixed ? processing['recryst_temp_max_C'].toFixed(0) : processing['recryst_temp_max_C']} °C` : '—'],
+                ['Recryst. Time', processing['recryst_time_total_s'] ? `${(processing['recryst_time_total_s']/3600).toFixed(2)} h` : '—'],
+                ['Cold Rolling', processing['Cold rolling reduction (percentage)'] !== undefined ? `${parseFloat(processing['Cold rolling reduction (percentage)']).toFixed(1)} %` : '—'],
+                ['Hot Rolling', processing['Hot rolling reduction (percentage)'] !== undefined ? `${parseFloat(processing['Hot rolling reduction (percentage)']).toFixed(1)} %` : '—'],
+                ['Sum (wt%)', compositionSum ? `${compositionSum.toFixed(2)} %` : '—']
+            ].map(([label, value]) => `
+                <div class="forward-summary-item">
+                    <strong>${label}</strong>
+                    ${value}
+                </div>
+            `).join('');
+
+            const violationsHtml = violations.length > 0 ? `
+                <div class="violations">
+                    <div class="violations-title">Constraint Violations:</div>
+                    ${violations.map(v => `<div>• ${v}</div>`).join('')}
+                </div>
+            ` : '';
+
+            const compositionGrid = buildCompositionGrid(composition);
+
+            content.innerHTML = `
+                <div class="forward-prediction-value">${data.predicted_value.toFixed(2)} MPa</div>
+                <div class="forward-meta">
+                    <span class="badge ${data.is_valid ? 'badge-valid' : 'badge-invalid'}">${data.is_valid ? 'Within Constraints' : 'Review Constraints'}</span>
+                    ${alloySeries ? `<span class="badge badge-series">${alloySeries}</span>` : ''}
+                </div>
+                <div class="forward-summary">${processingSummary}</div>
+                <div class="composition-grid">
+                    ${compositionGrid || '<div class="comp-item"><div class="comp-value">No composition specified</div></div>'}
+                </div>
+                ${violationsHtml}
+            `;
+        }
+
+        async function predictForward() {
+            showForwardError('');
+            setForwardLoading(true);
+            const compositionInputs = document.querySelectorAll('[data-comp-input]');
+            const composition = {};
+            let alloySum = 0;
+
+            compositionInputs.forEach(input => {
+                const key = input.dataset.compInput;
+                const value = parseFloat(input.value);
+                if (!isNaN(value)) {
+                    const rounded = parseFloat(value.toFixed(4));
+                    composition[key] = rounded;
+                    if (key !== 'Al') alloySum += rounded;
+                }
+            });
+
+            if (composition.Al === undefined) {
+                if (alloySum > 100) {
+                    showForwardError('Sum of alloying elements exceeds 100%. Reduce values or specify aluminum explicitly.');
+                    setForwardLoading(false);
+                    return;
+                }
+                composition.Al = parseFloat((100 - alloySum).toFixed(4));
+            }
+
+            const total = Object.values(composition).reduce((acc, val) => acc + (isNaN(val) ? 0 : val), 0);
+            if (total > 100.5) {
+                showForwardError(`Total composition is ${total.toFixed(2)}%, which exceeds 100%.`);
+                setForwardLoading(false);
+                return;
+            }
+
+            const processingInputs = document.querySelectorAll('[data-proc-input]');
+            const processing = {};
+            processingInputs.forEach(input => {
+                const key = input.dataset.procInput;
+                const raw = parseFloat(input.value);
+                if (!isNaN(raw)) {
+                    let value = raw;
+                    if (input.dataset.unit === 'hours') {
+                        value = raw * 3600;
+                    }
+                    processing[key] = parseFloat(value.toFixed(4));
+                }
+            });
+
+            try {
+                const response = await fetch(`${API_BASE}/api/predict`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        target: 'YS',
+                        composition,
+                        processing,
+                        mode: 'balanced'
+                    })
+                });
+
+                const data = await response.json();
+                if (!response.ok || !data.success) {
+                    throw new Error(data.error || 'Prediction failed');
+                }
+
+                renderForwardResult(data);
+            } catch (err) {
+                showForwardError(err.message);
+                console.error(err);
+            } finally {
+                setForwardLoading(false);
+            }
+        }
+        
+        function toggleAdvanced() {
+            const options = document.getElementById('advancedOptions');
+            const chevron = document.getElementById('chevron');
+            options.classList.toggle('show');
+            chevron.classList.toggle('rotated');
+        }
+        
+        function showError(message) {
+            const el = document.getElementById('errorMessage');
+            el.textContent = message;
+            el.classList.add('show');
+            setTimeout(() => el.classList.remove('show'), 5000);
+        }
+        
+        function setLoading(loading) {
+            const btn = document.getElementById('searchBtn');
+            if (loading) {
+                btn.disabled = true;
+                btn.innerHTML = '<div class="spinner"></div> Searching...';
+            } else {
+                btn.disabled = false;
+                btn.innerHTML = 'Find Compositions';
+            }
+        }
+        
+        async function search() {
+            const target = document.getElementById('target').value;
+            const value = parseFloat(document.getElementById('value').value);
+            const tolerance = parseFloat(document.getElementById('tolerance').value);
+            const nSuggestions = parseInt(document.getElementById('nSuggestions').value);
+            const mode = document.getElementById('mode').value;
+            
+            if (isNaN(value) || value <= 0) {
+                showError('Please enter a valid target value');
+                return;
+            }
+            
+            setLoading(true);
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/suggest`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        target,
+                        value,
+                        tolerance,
+                        n_suggestions: nSuggestions,
+                        mode
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.error || 'Request failed');
+                }
+                
+                displayResults(data);
+                
+            } catch (err) {
+                showError(err.message);
+                console.error(err);
+            } finally {
+                setLoading(false);
+            }
+        }
+        
+        function displayResults(data) {
+            const resultsDiv = document.getElementById('results');
+            const statsDiv = document.getElementById('modelStats');
+            const listDiv = document.getElementById('candidatesList');
+            
+            // Model stats
+            const stats = data.results.model_stats || {};
+            const range = data.results.target_range || {};
+            
+            statsDiv.innerHTML = `
+                <div class="stat">
+                    <div class="stat-value">${data.target}</div>
+                    <div class="stat-label">Property</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value">${data.target_value} MPa</div>
+                    <div class="stat-label">Target</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value">${range.low?.toFixed(0)} - ${range.high?.toFixed(0)}</div>
+                    <div class="stat-label">Search Range (MPa)</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value">${stats.pred_min?.toFixed(0) || '?'} - ${stats.pred_max?.toFixed(0) || '?'}</div>
+                    <div class="stat-label">Model Range (MPa)</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value">${data.results.candidates?.length || 0}</div>
+                    <div class="stat-label">Candidates Found</div>
+                </div>
+            `;
+            
+            // Candidates
+            const candidates = data.results.candidates || [];
+            
+            if (candidates.length === 0) {
+                listDiv.innerHTML = `
+                    <div class="empty-state">
+                        <p>No compositions found for this target.</p>
+                        <p>Try increasing the tolerance or adjusting the target value.</p>
+                    </div>
+                `;
+            } else {
+                listDiv.innerHTML = candidates.map((c, i) => renderCandidate(c, i + 1)).join('');
+            }
+            
+            resultsDiv.classList.add('show');
+            resultsDiv.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+        
+        function renderCandidate(candidate, rank) {
+            const comp = candidate.composition || {};
+            
+            // Composition elements (non-zero values)
+            const elements = ['Al', 'Mg', 'Cu', 'Zn', 'Mn', 'Si', 'Fe', 'Cr', 'Ni', 'Ti', 'Zr', 'Sc'];
+            const compItems = elements
+                .filter(el => comp[el] && comp[el] > 0.01)
+                .map(el => `
+                    <div class="comp-item">
+                        <div class="comp-element">${el}</div>
+                        <div class="comp-value">${comp[el].toFixed(2)}%</div>
+                    </div>
+                `).join('');
+            
+            // Processing parameters
+            const procParams = {
+                'homog_temp_max_C': { label: 'Homog. Temp', unit: '°C' },
+                'recryst_temp_max_C': { label: 'Recryst. Temp', unit: '°C' },
+                'Cold rolling reduction (percentage)': { label: 'Cold Rolling', unit: '%' },
+                'Hot rolling reduction (percentage)': { label: 'Hot Rolling', unit: '%' },
+                'homog_time_total_s': { label: 'Homog. Time', unit: 's' },
+                'recryst_time_total_s': { label: 'Recryst. Time', unit: 's' }
+            };
+            
+            const procItems = Object.entries(procParams)
+                .filter(([key]) => comp[key] !== undefined && comp[key] !== null)
+                .map(([key, info]) => {
+                    let value = comp[key];
+                    let displayValue = value.toFixed(info.unit === '°C' ? 0 : 1);
+                    return `
+                        <div class="proc-item">
+                            <div class="proc-label">${info.label}</div>
+                            <div class="proc-value">${displayValue} ${info.unit}</div>
+                        </div>
+                    `;
+                }).join('');
+            
+            const processingHtml = procItems ? `
+                <div class="processing-section">
+                    <div class="processing-title">Processing Parameters</div>
+                    <div class="processing-grid">${procItems}</div>
+                </div>
+            ` : '';
+            
+            const seriesBadges = (candidate.alloy_series || [])
+                .map(s => `<span class="badge badge-series">${s}</span>`)
+                .join('');
+            
+            const violationsHtml = !candidate.is_valid && candidate.violations?.length > 0 
+                ? `<div class="violations">
+                    <div class="violations-title">Constraint Violations:</div>
+                    ${candidate.violations.map(v => `<div>• ${v}</div>`).join('')}
+                   </div>`
+                : '';
+            
+            return `
+                <div class="candidate">
+                    <div class="candidate-header">
+                        <span class="candidate-rank">#${rank}</span>
+                        <div class="candidate-badges">
+                            <span class="badge ${candidate.is_valid ? 'badge-valid' : 'badge-invalid'}">
+                                ${candidate.is_valid ? 'Valid' : 'Review'}
+                            </span>
+                            ${seriesBadges}
+                        </div>
+                    </div>
+                    <div class="candidate-prediction">${candidate.predicted_value.toFixed(1)} MPa</div>
+                    <div class="candidate-error">Error: ${candidate.error.toFixed(1)} MPa (${candidate.error_pct.toFixed(1)}%)</div>
+                    <div class="composition-grid">
+                        ${compItems}
+                    </div>
+                    ${processingHtml}
+                    ${violationsHtml}
+                </div>
+            `;
+        }
+        
+        // Allow Enter key to trigger search
+        document.getElementById('value').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') search();
+        });
+
+        document.querySelectorAll('[data-comp-input]').forEach(input => {
+            input.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') predictForward();
+            });
+        });
+    </script>
+</body>
+</html>
