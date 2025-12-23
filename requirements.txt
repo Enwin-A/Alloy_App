@@ -3,3 +3,5 @@ flask-cors>=3.0.0
 numpy>=1.21.0
 scipy>=1.7.0
 scikit-learn>=1.0.0
+requests>=2.28.0
+gunicorn>=21.2.0

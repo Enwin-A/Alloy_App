@@ -6,30 +6,32 @@ A simple web API that wraps the constrain_and_suggest functionality
 for easy testing via a web interface.
 """
 
+import io
 import json
 import pickle
 import warnings
 from datetime import datetime
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from flask import Flask, jsonify, request, send_from_directory
+import requests
+from flask import Flask, jsonify, request
 from flask_cors import CORS
 from scipy.optimize import differential_evolution
 
 warnings.filterwarnings('ignore')
 
-app = Flask(__name__, static_folder='frontend', static_url_path='')
+# Flask app (API only - frontend is separate React app)
+app = Flask(__name__)
 CORS(app)
 
 # =============================================================================
 # CONFIGURATION
 # =============================================================================
 
-# Paths
-BASE_DIR = Path(__file__).parent
-MODEL_DIR = BASE_DIR / 'models'
+# Hugging Face model URL
+# Hugging Face model URL (use resolve to get the actual binary, not the Git LFS pointer)
+HUGGINGFACE_MODEL_URL = "https://huggingface.co/enwin/alloy_v1/resolve/main/gp_YS_exploration_balanced.pkl"
 
 # Element indices (must match feature order in training)
 ELEMENT_INDICES = {
@@ -81,38 +83,50 @@ _model_cache = {}
 # =============================================================================
 
 def load_model(target_name, mode='balanced'):
-    """Load trained GP model from cache or disk."""
+    """Load trained GP model from Hugging Face cache or download."""
     cache_key = f"{target_name}_{mode}"
     
+    # Check cache first
     if cache_key in _model_cache:
         return _model_cache[cache_key]
-    
-    # Try different possible paths
-    possible_paths = [
-        MODEL_DIR / mode / f'gp_{target_name}_exploration_{mode}.pkl',
-        MODEL_DIR / f'gp_{target_name}_exploration_{mode}.pkl',
-    ]
-    
-    model_path = None
-    for path in possible_paths:
-        if path.exists():
-            model_path = path
-            break
-    
-    if not model_path:
-        # Try to find any model for this target
-        available = list(MODEL_DIR.glob(f'**/gp_{target_name}_exploration_*.pkl'))
-        if available:
-            model_path = available[0]
-    
-    if not model_path or not model_path.exists():
-        raise FileNotFoundError(f"No model found for {target_name}")
-    
-    with open(model_path, 'rb') as f:
-        results = pickle.load(f)
-    
-    _model_cache[cache_key] = results
-    return results
+
+    def _download_model_bytes(url: str) -> bytes:
+        headers = {
+            "Accept": "application/octet-stream",
+            "User-Agent": "alloy-gp-backend/1.0",
+        }
+        resp = requests.get(url, timeout=60, allow_redirects=True, headers=headers)
+        resp.raise_for_status()
+        content = resp.content
+
+        # Basic sanity checks to avoid trying to unpickle HTML/text
+        if not content or len(content) < 32:
+            raise ValueError("Downloaded model is unexpectedly small; check the URL or permissions.")
+        if not content.startswith(b"\x80"):
+            preview = content[:32]
+            raise ValueError(
+                f"Downloaded content is not a pickle (starts with {preview!r}); verify the Hugging Face URL and that the repo/file is public."
+            )
+        return content
+
+    # Download from Hugging Face
+    try:
+        print(f"Downloading model for {target_name} ({mode}) from Hugging Face...")
+        model_bytes = _download_model_bytes(HUGGINGFACE_MODEL_URL)
+
+        # Load model from downloaded bytes
+        results = pickle.load(io.BytesIO(model_bytes))
+        
+        # Cache the model
+        _model_cache[cache_key] = results
+        print("Model loaded successfully and cached.")
+        
+        return results
+        
+    except requests.RequestException as e:
+        raise FileNotFoundError(f"Failed to download model from Hugging Face: {str(e)}")
+    except pickle.UnpicklingError as e:
+        raise ValueError(f"Failed to load model file: {str(e)}")
 
 
 def predict_property(model, scaler, composition_vector):
@@ -428,9 +442,19 @@ def suggest_compositions(target_name, target_value, model_results,
 # =============================================================================
 
 @app.route('/')
-def serve_frontend():
-    """Serve the frontend."""
-    return send_from_directory(app.static_folder, 'index.html')
+def root():
+    """API root - returns basic info."""
+    return jsonify({
+        'name': 'Alloy Composition Predictor API',
+        'version': '1.0.0',
+        'endpoints': {
+            'health': '/api/health',
+            'suggest': '/api/suggest (POST)',
+            'predict': '/api/predict (POST)'
+        },
+        'frontend': 'Deployed separately on Vercel',
+        'docs': 'See README.md for API documentation'
+    })
 
 
 @app.route('/api/health')
@@ -440,18 +464,6 @@ def health_check():
         'status': 'ok',
         'timestamp': datetime.now().isoformat()
     })
-
-
-@app.route('/api/models')
-def list_models():
-    """List available models."""
-    models = []
-    for pkl_file in MODEL_DIR.glob('**/*.pkl'):
-        models.append({
-            'name': pkl_file.stem,
-            'path': str(pkl_file.relative_to(MODEL_DIR))
-        })
-    return jsonify({'models': models})
 
 
 @app.route('/api/suggest', methods=['POST'])
@@ -574,12 +586,19 @@ def predict():
 # =============================================================================
 
 if __name__ == '__main__':
+    import os
+    
     print("\n" + "="*60)
-    print("ALLOY COMPOSITION SUGGESTION WEB APP")
+    print("ALLOY COMPOSITION SUGGESTION API")
     print("="*60)
-    print(f"\nModel directory: {MODEL_DIR}")
-    print(f"Frontend directory: {BASE_DIR / 'frontend'}")
-    print("\nStarting server at http://localhost:5000")
+    print(f"\nModel directory: {HUGGINGFACE_MODEL_URL}")
+    print(f"Environment: {os.getenv('FLASK_ENV', 'development')}")
+    
+    # Use environment PORT for Render deployment
+    port = int(os.getenv('PORT', 5000))
+    debug = os.getenv('FLASK_ENV') != 'production'
+    
+    print(f"\nStarting server on port {port}")
     print("Press Ctrl+C to stop\n")
     
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=debug, host='0.0.0.0', port=port)
