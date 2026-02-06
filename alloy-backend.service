@@ -1,0 +1,13 @@
+[Unit]
+Description=Gunicorn instance to serve Alloy Flask API
+After=network.target
+
+[Service]
+User=root
+Group=www-data
+WorkingDirectory=/root/alloy-app-backend
+Environment="PATH=/root/alloy-app-backend/venv/bin"
+ExecStart=/root/alloy-app-backend/venv/bin/gunicorn --workers 3 --bind 0.0.0.0:5000 --timeout 120 wsgi:app
+
+[Install]
+WantedBy=multi-user.target

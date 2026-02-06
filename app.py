@@ -23,7 +23,19 @@ warnings.filterwarnings('ignore')
 
 # Flask app (API only - frontend is separate React app)
 app = Flask(__name__)
-CORS(app)
+# Configure CORS to allow requests from Vercel frontend
+CORS(app, resources={
+    r"/*": {
+        "origins": [
+            "https://alloy-app-frontend.vercel.app",
+            "http://localhost:5173",  # For local development
+            "http://localhost:5000"
+        ],
+        "methods": ["GET", "POST", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Authorization"],
+        "supports_credentials": True
+    }
+})
 
 # =============================================================================
 # CONFIGURATION
@@ -579,6 +591,16 @@ def predict():
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+@app.route('/health', methods=['GET'])
+def health_check():
+    """Health check endpoint for monitoring."""
+    return jsonify({
+        'status': 'healthy',
+        'timestamp': datetime.now().isoformat(),
+        'service': 'alloy-api'
+    }), 200
 
 
 # =============================================================================
