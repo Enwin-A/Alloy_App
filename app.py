@@ -14,14 +14,29 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from flask import Flask, jsonify, request, send_from_directory
+from flask import Flask, jsonify, request
 from flask_cors import CORS
 from scipy.optimize import differential_evolution
 
 warnings.filterwarnings('ignore')
 
-app = Flask(__name__, static_folder='frontend', static_url_path='')
-CORS(app)
+# Flask app (API only - frontend is separate React app)
+app = Flask(__name__)
+# Configure CORS to allow requests from Vercel frontend and custom domain
+CORS(app, resources={
+    r"/*": {
+        "origins": [
+            "https://alloydesign.org",             # Production domain
+            "https://www.alloydesign.org",         # Production domain (www)
+            "https://alloy-app-frontend.vercel.app",  # Vercel preview
+            "http://localhost:5173",               # Local development (Vite)
+            "http://localhost:5000"                # Local development (Flask)
+        ],
+        "methods": ["GET", "POST", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Authorization"],
+        "supports_credentials": True
+    }
+})
 
 # =============================================================================
 # CONFIGURATION
