@@ -14,29 +14,14 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 from scipy.optimize import differential_evolution
 
 warnings.filterwarnings('ignore')
 
-# Flask app (API only - frontend is separate React app)
-app = Flask(__name__)
-# Configure CORS to allow requests from Vercel frontend and custom domain
-CORS(app, resources={
-    r"/*": {
-        "origins": [
-            "https://alloydesign.org",             # Production domain
-            "https://www.alloydesign.org",         # Production domain (www)
-            "https://alloy-app-frontend.vercel.app",  # Vercel preview
-            "http://localhost:5173",               # Local development (Vite)
-            "http://localhost:5000"                # Local development (Flask)
-        ],
-        "methods": ["GET", "POST", "OPTIONS"],
-        "allow_headers": ["Content-Type", "Authorization"],
-        "supports_credentials": True
-    }
-})
+app = Flask(__name__, static_folder='frontend', static_url_path='')
+CORS(app)
 
 # =============================================================================
 # CONFIGURATION
@@ -443,19 +428,9 @@ def suggest_compositions(target_name, target_value, model_results,
 # =============================================================================
 
 @app.route('/')
-def root():
-    """API root - returns basic info."""
-    return jsonify({
-        'name': 'Alloy Composition Predictor API',
-        'version': '1.0.0',
-        'endpoints': {
-            'health': '/api/health',
-            'suggest': '/api/suggest (POST)',
-            'predict': '/api/predict (POST)'
-        },
-        'frontend': 'Deployed separately on Vercel',
-        'docs': 'See README.md for API documentation'
-    })
+def serve_frontend():
+    """Serve the frontend."""
+    return send_from_directory(app.static_folder, 'index.html')
 
 
 @app.route('/api/health')
@@ -465,6 +440,18 @@ def health_check():
         'status': 'ok',
         'timestamp': datetime.now().isoformat()
     })
+
+
+@app.route('/api/models')
+def list_models():
+    """List available models."""
+    models = []
+    for pkl_file in MODEL_DIR.glob('**/*.pkl'):
+        models.append({
+            'name': pkl_file.stem,
+            'path': str(pkl_file.relative_to(MODEL_DIR))
+        })
+    return jsonify({'models': models})
 
 
 @app.route('/api/suggest', methods=['POST'])
@@ -547,6 +534,20 @@ def predict():
         processing = data.get('processing', {}) or {}
         mode = data.get('mode', 'balanced')
         
+        # Auto-fill missing composition elements
+        comp_elements = ['Al', 'Si', 'Fe', 'Cu', 'Mn', 'Mg', 'Cr', 'Ni', 'Zn', 'Ti', 'Zr', 'Sc', 'Other']
+        
+        # Fill in missing elements with 0
+        for elem in comp_elements:
+            if elem not in composition:
+                composition[elem] = 0.0
+        
+        # Calculate Al to make composition sum to 100% if Al is not specified or is 0
+        non_al_sum = sum(float(composition.get(e, 0.0)) for e in comp_elements if e != 'Al')
+        
+        if composition.get('Al', 0.0) == 0.0 or non_al_sum > 1.0:  # If Al not set or we have real percentages
+            composition['Al'] = max(85.0, min(99.5, 100.0 - non_al_sum))
+        
         # Load model
         model_results = load_model(target, mode)
         model = model_results['best_model']
@@ -582,34 +583,17 @@ def predict():
         return jsonify({'error': str(e)}), 500
 
 
-@app.route('/health', methods=['GET'], endpoint='health_monitor')
-def health_monitor():
-    """Health check endpoint for monitoring."""
-    return jsonify({
-        'status': 'healthy',
-        'timestamp': datetime.now().isoformat(),
-        'service': 'alloy-api'
-    }), 200
-
-
 # =============================================================================
 # MAIN
 # =============================================================================
 
 if __name__ == '__main__':
-    import os
-    
     print("\n" + "="*60)
-    print("ALLOY COMPOSITION SUGGESTION API")
+    print("ALLOY COMPOSITION SUGGESTION WEB APP")
     print("="*60)
     print(f"\nModel directory: {MODEL_DIR}")
-    print(f"Environment: {os.getenv('FLASK_ENV', 'development')}")
-    
-    # Use environment PORT for Render deployment
-    port = int(os.getenv('PORT', 5000))
-    debug = os.getenv('FLASK_ENV') != 'production'
-    
-    print(f"\nStarting server on port {port}")
+    print(f"Frontend directory: {BASE_DIR / 'frontend'}")
+    print("\nStarting server at http://localhost:5000")
     print("Press Ctrl+C to stop\n")
     
-    app.run(debug=debug, host='0.0.0.0', port=port)
+    app.run(debug=True, host='0.0.0.0', port=5000)
