@@ -20,23 +20,8 @@ from scipy.optimize import differential_evolution
 
 warnings.filterwarnings('ignore')
 
-# Flask app (API only - frontend is separate React app)
-app = Flask(__name__)
-# Configure CORS to allow requests from Vercel frontend and custom domain
-CORS(app, resources={
-    r"/*": {
-        "origins": [
-            "https://alloydesign.org",             # Production domain
-            "https://www.alloydesign.org",         # Production domain (www)
-            "https://alloy-app-frontend.vercel.app",  # Vercel preview
-            "http://localhost:5173",               # Local development (Vite)
-            "http://localhost:5000"                # Local development (Flask)
-        ],
-        "methods": ["GET", "POST", "OPTIONS"],
-        "allow_headers": ["Content-Type", "Authorization"],
-        "supports_credentials": True
-    }
-})
+app = Flask(__name__, static_folder='frontend', static_url_path='')
+CORS(app)
 
 # =============================================================================
 # CONFIGURATION
@@ -612,10 +597,8 @@ def predict():
 # =============================================================================
 
 if __name__ == '__main__':
-    import os
-    
     print("\n" + "="*60)
-    print("ALLOY COMPOSITION SUGGESTION API")
+    print("ALLOY COMPOSITION SUGGESTION WEB APP")
     print("="*60)
     print(f"\nModel directory: {MODEL_DIR}")
     print(f"Environment: {os.getenv('FLASK_ENV', 'development')}")
@@ -628,4 +611,4 @@ if __name__ == '__main__':
     print("Frontend: Separate React app (Vite dev server on :5173)")
     print("Press Ctrl+C to stop\n")
     
-    app.run(debug=debug, host='0.0.0.0', port=port)
+    app.run(debug=True, host='0.0.0.0', port=5000)
