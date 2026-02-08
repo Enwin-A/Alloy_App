@@ -6,7 +6,6 @@ A simple web API that wraps the constrain_and_suggest functionality
 for easy testing via a web interface.
 """
 
-import io
 import json
 import pickle
 import warnings
@@ -15,7 +14,6 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-import requests
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 from scipy.optimize import differential_evolution
@@ -46,10 +44,7 @@ CORS(app, resources={
 
 # Paths
 BASE_DIR = Path(__file__).parent
-
-# Hugging Face model URL
-# Hugging Face model URL (use resolve to get the actual binary, not the Git LFS pointer)
-HUGGINGFACE_MODEL_URL = "https://huggingface.co/enwin/alloy_v1/resolve/main/gp_YS_exploration_balanced.pkl"
+MODEL_DIR = BASE_DIR / 'models'
 
 # Element indices (must match feature order in training)
 ELEMENT_INDICES = {
@@ -101,50 +96,38 @@ _model_cache = {}
 # =============================================================================
 
 def load_model(target_name, mode='balanced'):
-    """Load trained GP model from Hugging Face cache or download."""
+    """Load trained GP model from cache or disk."""
     cache_key = f"{target_name}_{mode}"
     
-    # Check cache first
     if cache_key in _model_cache:
         return _model_cache[cache_key]
-
-    def _download_model_bytes(url: str) -> bytes:
-        headers = {
-            "Accept": "application/octet-stream",
-            "User-Agent": "alloy-gp-backend/1.0",
-        }
-        resp = requests.get(url, timeout=60, allow_redirects=True, headers=headers)
-        resp.raise_for_status()
-        content = resp.content
-
-        # Basic sanity checks to avoid trying to unpickle HTML/text
-        if not content or len(content) < 32:
-            raise ValueError("Downloaded model is unexpectedly small; check the URL or permissions.")
-        if not content.startswith(b"\x80"):
-            preview = content[:32]
-            raise ValueError(
-                f"Downloaded content is not a pickle (starts with {preview!r}); verify the Hugging Face URL and that the repo/file is public."
-            )
-        return content
-
-    # Download from Hugging Face
-    try:
-        print(f"Downloading model for {target_name} ({mode}) from Hugging Face...")
-        model_bytes = _download_model_bytes(HUGGINGFACE_MODEL_URL)
-
-        # Load model from downloaded bytes
-        results = pickle.load(io.BytesIO(model_bytes))
-        
-        # Cache the model
-        _model_cache[cache_key] = results
-        print("Model loaded successfully and cached.")
-        
-        return results
-        
-    except requests.RequestException as e:
-        raise FileNotFoundError(f"Failed to download model from Hugging Face: {str(e)}")
-    except pickle.UnpicklingError as e:
-        raise ValueError(f"Failed to load model file: {str(e)}")
+    
+    # Try different possible paths
+    possible_paths = [
+        MODEL_DIR / mode / f'gp_{target_name}_exploration_{mode}.pkl',
+        MODEL_DIR / f'gp_{target_name}_exploration_{mode}.pkl',
+    ]
+    
+    model_path = None
+    for path in possible_paths:
+        if path.exists():
+            model_path = path
+            break
+    
+    if not model_path:
+        # Try to find any model for this target
+        available = list(MODEL_DIR.glob(f'**/gp_{target_name}_exploration_*.pkl'))
+        if available:
+            model_path = available[0]
+    
+    if not model_path or not model_path.exists():
+        raise FileNotFoundError(f"No model found for {target_name}")
+    
+    with open(model_path, 'rb') as f:
+        results = pickle.load(f)
+    
+    _model_cache[cache_key] = results
+    return results
 
 
 def predict_property(model, scaler, composition_vector):
@@ -619,7 +602,7 @@ if __name__ == '__main__':
     print("\n" + "="*60)
     print("ALLOY COMPOSITION SUGGESTION API")
     print("="*60)
-    print(f"\nModel directory: {HUGGINGFACE_MODEL_URL}")
+    print(f"\nModel directory: {MODEL_DIR}")
     print(f"Environment: {os.getenv('FLASK_ENV', 'development')}")
     
     # Use environment PORT for Render deployment
