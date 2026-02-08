@@ -14,7 +14,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 from scipy.optimize import differential_evolution
 
@@ -449,12 +449,13 @@ def root():
         'name': 'Alloy Composition Predictor API',
         'version': '1.0.0',
         'endpoints': {
-            'health': '/api/health',
+            'health': '/health',
+            'api_health': '/api/health',
             'suggest': '/api/suggest (POST)',
             'predict': '/api/predict (POST)'
         },
-        'frontend': 'Deployed separately on Vercel',
-        'docs': 'See README.md for API documentation'
+        'frontend': 'Deployed separately on Vercel at https://alloydesign.org',
+        'docs': 'See API_DOCUMENTATION.md for details'
     })
 
 
@@ -465,6 +466,16 @@ def health_check():
         'status': 'ok',
         'timestamp': datetime.now().isoformat()
     })
+
+
+@app.route('/health', methods=['GET'], endpoint='health_monitor')
+def health_monitor():
+    """Health check endpoint for monitoring."""
+    return jsonify({
+        'status': 'healthy',
+        'timestamp': datetime.now().isoformat(),
+        'service': 'alloy-api'
+    }), 200
 
 
 @app.route('/api/suggest', methods=['POST'])
@@ -547,6 +558,20 @@ def predict():
         processing = data.get('processing', {}) or {}
         mode = data.get('mode', 'balanced')
         
+        # Auto-fill missing composition elements
+        comp_elements = ['Al', 'Si', 'Fe', 'Cu', 'Mn', 'Mg', 'Cr', 'Ni', 'Zn', 'Ti', 'Zr', 'Sc', 'Other']
+        
+        # Fill in missing elements with 0
+        for elem in comp_elements:
+            if elem not in composition:
+                composition[elem] = 0.0
+        
+        # Calculate Al to make composition sum to 100% if Al is not specified or is 0
+        non_al_sum = sum(float(composition.get(e, 0.0)) for e in comp_elements if e != 'Al')
+        
+        if composition.get('Al', 0.0) == 0.0 or non_al_sum > 1.0:  # If Al not set or we have real percentages
+            composition['Al'] = max(85.0, min(99.5, 100.0 - non_al_sum))
+        
         # Load model
         model_results = load_model(target, mode)
         model = model_results['best_model']
@@ -582,16 +607,6 @@ def predict():
         return jsonify({'error': str(e)}), 500
 
 
-@app.route('/health', methods=['GET'], endpoint='health_monitor')
-def health_monitor():
-    """Health check endpoint for monitoring."""
-    return jsonify({
-        'status': 'healthy',
-        'timestamp': datetime.now().isoformat(),
-        'service': 'alloy-api'
-    }), 200
-
-
 # =============================================================================
 # MAIN
 # =============================================================================
@@ -605,11 +620,12 @@ if __name__ == '__main__':
     print(f"\nModel directory: {MODEL_DIR}")
     print(f"Environment: {os.getenv('FLASK_ENV', 'development')}")
     
-    # Use environment PORT for Render deployment
+    # Use environment PORT for deployment
     port = int(os.getenv('PORT', 5000))
     debug = os.getenv('FLASK_ENV') != 'production'
     
-    print(f"\nStarting server on port {port}")
+    print(f"\nStarting API server on port {port}")
+    print("Frontend: Separate React app (Vite dev server on :5173)")
     print("Press Ctrl+C to stop\n")
     
     app.run(debug=debug, host='0.0.0.0', port=port)
