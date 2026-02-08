@@ -11,6 +11,7 @@ import json
 import pickle
 import warnings
 from datetime import datetime
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -23,13 +24,15 @@ warnings.filterwarnings('ignore')
 
 # Flask app (API only - frontend is separate React app)
 app = Flask(__name__)
-# Configure CORS to allow requests from Vercel frontend
+# Configure CORS to allow requests from Vercel frontend and custom domain
 CORS(app, resources={
     r"/*": {
         "origins": [
-            "https://alloy-app-frontend.vercel.app",
-            "http://localhost:5173",  # For local development
-            "http://localhost:5000"
+            "https://alloydesign.org",             # Production domain
+            "https://www.alloydesign.org",         # Production domain (www)
+            "https://alloy-app-frontend.vercel.app",  # Vercel preview
+            "http://localhost:5173",               # Local development (Vite)
+            "http://localhost:5000"                # Local development (Flask)
         ],
         "methods": ["GET", "POST", "OPTIONS"],
         "allow_headers": ["Content-Type", "Authorization"],
@@ -40,6 +43,9 @@ CORS(app, resources={
 # =============================================================================
 # CONFIGURATION
 # =============================================================================
+
+# Paths
+BASE_DIR = Path(__file__).parent
 
 # Hugging Face model URL
 # Hugging Face model URL (use resolve to get the actual binary, not the Git LFS pointer)
